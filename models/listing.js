@@ -38,11 +38,12 @@ const listingSchema = new Schema({
     // }
 });
 
-listingSchema.post("findOneAndDelete", async (listing) => {
-    if(listing) {
-        await Review.deleteMany({_id: {$in: listing.reviews}})
+listingSchema.post("findOneAndDelete", async function (doc) {  // ✅ 'doc' used instead of 'listing'
+    if (doc) {
+        await Review.deleteMany({ _id: { $in: doc.reviews } });
+        console.log("Deleted associated reviews!");
     }
-})
+});
 
 const Listing = mongoose.model("Listing", listingSchema);
 module.exports = Listing;

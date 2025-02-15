@@ -1,9 +1,10 @@
-if(process.env.NODE_ENV != 'production') {
+// 🌟 Load Environment Variables
+if (process.env.NODE_ENV !== "production") {
     require("dotenv").config();
 }
 
+// 🌟 Import Required Modules
 const express = require("express");
-const app = express();
 const mongoose = require("mongoose");
 const path = require("path");
 const methodOverride = require("method-override");
@@ -14,47 +15,66 @@ const MongoStore = require("connect-mongo");
 const flash = require("connect-flash");
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const multer = require('multer');
 const User = require("./models/user.js");
+const Listing = require("./models/listing.js");
 
+// 🌟 Import Routes
 const listingRouter = require("./routes/listing.js");
 const reviewRouter = require("./routes/review.js");
 const userRouter = require("./routes/user.js");
 
-// const Mongoose_URL = "mongodb://127.0.0.1:27017/wanderlust";
-const dbUrl = process.env.ATLASDB_URL;
+// 🌟 Express App
+const app = express();
 
-main().then(() => {
-    console.log("connected to DB");
-}).catch((err) => {
-    console.log(err);
-})
+// 🌟 MongoDB Connection (Fix for MONGO_URI issue)
+const MONGO_URI = process.env.MONGO_URI || process.env.ATLASDB_URL;
 
-async function main() {
-    await mongoose.connect(dbUrl)
+if (!MONGO_URI) {
+    console.error("❌ MONGO_URI is missing in .env file");
+    process.exit(1);
 }
 
+const connectDB = async () => {
+    try {
+        await mongoose.connect(MONGO_URI);
+        console.log("✅ Connected to MongoDB:", mongoose.connection.name);
+        console.log("✅ Using Database:", mongoose.connection.db.databaseName);
+    } catch (error) {
+        console.error("❌ MongoDB Connection Failed:", error.message);
+        process.exit(1);
+    }
+};
+
+connectDB();
+
+// 🌟 View Engine Setup
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
-app.use(express.urlencoded({ extended: true }));
-app.use(methodOverride("_method"));
 app.engine("ejs", ejsMate);
+
+// 🌟 Middleware
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname, "/public")));
 
+// 🌟 Session Store Setup
 const store = MongoStore.create({
-    mongoUrl: dbUrl,
+    mongoUrl: MONGO_URI,
     crypto: {
         secret: process.env.SECRET,
     },
-    touchAfter: 24 * 3600,
+    touchAfter: 24 * 3600, // 24 hours
 });
 
-store.on("error", () => {
+store.on("error", (err) => {
     console.log("ERROR in MONGO SESSION STORE", err);
 });
 
 const sessionOptions = {
     store,
-    secret: process.env.SECRET,
+    secret: process.env.SECRET || "fallbacksecret",
     resave: false,
     saveUninitialized: true,
     cookie: {
@@ -62,22 +82,19 @@ const sessionOptions = {
         maxAge: 7 * 24 * 60 * 60 * 1000,
         httpOnly: true,
     }
-}
-
-// app.get("/", (req, res) => {
-//     res.send("Hi, I am root!");
-// })
+};
 
 app.use(session(sessionOptions));
 app.use(flash());
 
+// 🌟 Passport Authentication Setup
 app.use(passport.initialize());
 app.use(passport.session());
 passport.use(new LocalStrategy(User.authenticate()));
-
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
 
+// 🌟 Global Variables for Flash Messages & User
 app.use((req, res, next) => {
     res.locals.success = req.flash("success");
     res.locals.error = req.flash("error");
@@ -85,30 +102,45 @@ app.use((req, res, next) => {
     next();
 });
 
-// app.get("/demouser", async (req, res) => {
-//     let fakeUser = new User({
-//         email: "student@gmail.com",
-//         username: "student",
-//     })
-
-//     let registeredUser = await User.register(fakeUser, "helloworld")
-//     res.send(registeredUser)
-// });
-
+// 🌟 Routes
 app.use("/listings", listingRouter);
 app.use("/listings/:id/reviews", reviewRouter);
 app.use("/", userRouter);
 
+// 🌟 New Listing Route (Fixed Error Handling)
+app.post("/listings", async (req, res) => {
+    console.log("✅ Request Body:", req.body);  
+
+    if (!req.body.title) {
+        return res.status(400).json({ error: "Title is required" });  
+    }
+
+    try {
+        const newListing = new Listing(req.body);
+        await newListing.save();
+        res.status(201).json(newListing);  
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// 🌟 404 Error Handler
 app.all("*", (req, res, next) => {
-    next(new ExpressError(404, "Page Not Found!"))
-})
+    next(new ExpressError(404, "Page Not Found!"));
+});
 
+// 🌟 General Error Handler
 app.use((err, req, res, next) => {
-    let {statusCode = 500, message = "Something went wrong!"} = err;
-    res.status(statusCode).render("error.ejs", {message})
-    // res.status(statusCode).send(message);
-})
+    if (err instanceof multer.MulterError) {
+        return res.status(400).send("File upload error!");
+    }
+    let { statusCode = 500, message = "Something went wrong!" } = err;
+    res.status(statusCode).render("error.ejs", { message });
+});
 
-app.listen(8080, (req, res) => {
-    console.log("app is listening on port 8080");
-})
+// 🌟 Start Server
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+    console.log(`🚀 App is listening on port ${PORT}`);
+});

@@ -13,7 +13,10 @@ router
     .get(wrapAsync(listingController.index))
     .post(
         isLoggedIn, 
-        upload.single("listing[image]"),
+        upload.single("image"), (req, res, next) => {
+            console.log("Uploaded File:", req.file); // ✅ Debugging ke liye
+            next();
+        },
         validateListing, 
         wrapAsync(listingController.createListing)
     );
