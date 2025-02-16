@@ -109,19 +109,21 @@ app.use("/", userRouter);
 
 // 🌟 New Listing Route (Fixed Error Handling)
 app.post("/listings", async (req, res) => {
-    console.log("✅ Request Body:", req.body);  
+    console.log("✅ Incoming Request Body:", JSON.stringify(req.body, null, 2));
 
-    if (!req.body.title) {
-        return res.status(400).json({ error: "Title is required" });  
+    if (!req.body.Listing || !req.body.Listing.title) {
+        console.log("❌ Title Missing in Request Body!");
+        return res.status(400).json({ error: "Title is required" });
     }
 
     try {
-        const newListing = new Listing(req.body);
+        const newListing = new Listing(req.body.Listing);
         await newListing.save();
-        res.status(201).json(newListing);  
+        console.log("✅ Listing Saved Successfully:", newListing);
+        res.status(201).json(newListing);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Internal Server Error" });
+        console.error("❌ Error Saving Listing:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 
