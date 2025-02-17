@@ -15,7 +15,9 @@ const MongoStore = require("connect-mongo");
 const flash = require("connect-flash");
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const multer = require('multer');
+const multer = require("multer");
+const { storage } = require("./cloudConfig"); 
+const upload = multer({ storage });  // ✅ Ensure multer is set properly
 const User = require("./models/user.js");
 const Listing = require("./models/listing.js");
 
@@ -125,6 +127,10 @@ app.post("/listings", async (req, res) => {
         console.error("❌ Error Saving Listing:", err);
         res.status(500).json({ error: err.message });
     }
+});
+
+app.get("/", (req, res) => {
+    res.redirect("/listings");
 });
 
 // 🌟 404 Error Handler
